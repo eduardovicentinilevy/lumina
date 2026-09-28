@@ -8,14 +8,28 @@ Tributária (Split Payment do IBS/CBS), da Resolução Conjunta BCB/CMN nº
 2338/2023 (Marco Legal da IA).
 
 Este repositório contém uma implementação funcional (MVP de demonstração) da
-plataforma descrita nesse relatório: aplicação Next.js completa, com
-autenticação, base de dados, motor de simulação fiscal e motor de score de
-crédito explicável — tudo executável localmente.
+plataforma descrita nesse relatório, construída como um projeto **backend
+Node.js/Express + frontend React**, com base de dados SQL própria (sem ORM).
 
 > **Aviso:** este é um projeto de demonstração/portfólio. Os parceiros
 > (Pluggy, Klavi, Celcoin, QI Tech, TOTVS, SAP, Senior) são citados como
 > referência de integração real de mercado, mas nenhuma integração externa é
 > efetivamente realizada — todos os dados são simulados localmente.
+
+## Stack técnica
+
+O projeto é um monorepo simples com duas aplicações independentes que
+conversam por API REST:
+
+| Camada | Tecnologias |
+| --- | --- |
+| **Backend** (`/server`) | Node.js, Express, SQLite (`better-sqlite3`, SQL puro — sem ORM), JWT (`jsonwebtoken`), `bcryptjs`, `cookie-parser` |
+| **Frontend** (`/client`) | React (JavaScript, sem TypeScript), React Router, Vite, CSS puro (Flexbox — sem frameworks utilitários) |
+| **Infra** | Dockerfile multi-stage pronto para Google Cloud Run / App Engine flexible |
+
+Todo o SQL é escrito à mão (sem Prisma/Sequelize/TypeORM): consultas
+parametrizadas, `JOIN`s, agregações com `GROUP BY`, uma `VIEW` e transações
+explícitas — ver `server/src/db/schema.sql` e as rotas em `server/src/routes/`.
 
 ## Por que estes módulos
 
@@ -27,105 +41,128 @@ que uma Entidade Tomadora de BaaS pode fazer, e o PL 2338/2023 exige
 explicabilidade para sistemas de IA que avaliam risco de crédito. A Lumina
 foi desenhada dentro dessas fronteiras regulatórias — não apesar delas.
 
-| Módulo | O que resolve | Como está implementado aqui |
+| Módulo | O que resolve | Onde está implementado |
 | --- | --- | --- |
-| **Agregação Patrimonial** | Fragmentação bancária e reconciliação manual | `dashboard/contas` — contas simuladas via Open Finance (Pluggy/Klavi), com consentimento e expiração |
-| **Previsibilidade de Liquidez** | Choque de caixa do Split Payment | `dashboard/fluxo-caixa` — motor `simulateSplitPayment()` aplica IBS/CBS por regime tributário sobre cada fatura |
-| **Crédito Contextual** | Necessidade de capital de giro pós-Split Payment | `dashboard/credito` — motor `computeCreditScore()` gera score explicável (0–1000) a partir do histórico real de recebíveis |
-| **Cobrança B2B & Pix Automático** | Churn involuntário e custo de MDR | `dashboard/cobranca` — cobranças recorrentes, mandatos Pix Automático, simulação de falha/reenvio de cobrança |
+| **Agregação Patrimonial** | Fragmentação bancária e reconciliação manual | `GET/POST /api/accounts`, página `Contas.jsx` |
+| **Previsibilidade de Liquidez** | Choque de caixa do Split Payment | `GET /api/invoices/summary\|monthly`, `GET /api/tax/simulate`, página `FluxoCaixa.jsx` |
+| **Crédito Contextual** | Necessidade de capital de giro pós-Split Payment | `GET/POST /api/credit/*`, página `Credito.jsx` |
+| **Cobrança B2B & Pix Automático** | Churn involuntário e custo de MDR | `GET/POST/PATCH /api/invoices`, página `Cobranca.jsx` |
 
-A Lumina nunca decide crédito sozinha: o motor de score apenas gera a
-**pré-visualização explicável** que seria enviada a uma Instituição
-Prestadora de BaaS licenciada (aqui representada por "Celcoin Instituição de
-Pagamento S.A."), conforme a separação de responsabilidades da Resolução
-Conjunta nº 16/2025.
+A Lumina nunca decide crédito sozinha: o motor de score (`server/src/services/credit.service.js`)
+apenas gera a **pré-visualização explicável** que seria enviada a uma
+Instituição Prestadora de BaaS licenciada (aqui representada por "Celcoin
+Instituição de Pagamento S.A."), conforme a separação de responsabilidades
+da Resolução Conjunta nº 16/2025.
 
-## Stack técnica
+## Estrutura do projeto
 
-- **Next.js 16** (App Router, Server Components, Server Actions) + React 19 + TypeScript
-- **Tailwind CSS 4** para estilo
-- **Prisma 7** (novo gerador `prisma-client`) + **SQLite** via `@prisma/adapter-better-sqlite3`
-- **jose** para sessão JWT assinada (HS256) em cookie `httpOnly`
-- **bcryptjs** para hashing de senha
-- **zod** para validação de entrada nas rotas de autenticação
+```
+server/                      API REST (Node.js + Express)
+  src/
+    index.js                  entrada do Express, monta as rotas
+    db/
+      index.js                 conexão better-sqlite3
+      schema.sql                 tabelas, índices e a VIEW v_company_invoice_metrics
+      migrate.js                  aplica o schema.sql
+    middleware/auth.js         JWT em cookie httpOnly + requireAuth
+    routes/                    auth, accounts, invoices, credit, tax, plans
+    services/
+      tax.service.js            simulação de Split Payment (IBS/CBS)
+      credit.service.js          motor de score explicável
+      plans.js                    planos e preços
+    seed.js                    popula uma empresa de demonstração
+  data/lumina.db              base de dados SQLite (gerada localmente)
 
-Não há dependência de serviços externos — tudo roda localmente com SQLite.
+client/                      SPA (React + Vite, JavaScript puro)
+  src/
+    api/client.js              wrapper fetch (cookies de sessão inclusos)
+    context/AuthContext.jsx    estado de sessão (login/registo/logout)
+    components/
+      marketing/                Navbar, Hero, simulador, módulos, preços…
+      dashboard/                Sidebar, Topbar, StatCard, BarChart, Badge…
+    pages/
+      Landing.jsx, Login.jsx, Register.jsx
+      dashboard/                Overview, Contas, FluxoCaixa, Credito, Cobranca
+    styles/                   CSS puro (global.css + dashboard.css, layout em Flexbox)
 
-## Domínio de dados (`prisma/schema.prisma`)
-
-`Company` → `User`, `BankAccount` (+ `Transaction`), `Invoice`,
-`CreditOffer`, `Subscription`. Os valores monetários são armazenados em
-**centavos** (`Int`) para evitar erros de ponto flutuante.
-
-## Rodando o projeto
-
-```bash
-npm install
-cp .env.example .env        # ajuste JWT_SECRET em produção
-npm run db:migrate           # cria o banco SQLite local
-npm run db:seed              # popula uma empresa de demonstração
-npm run dev
+Dockerfile                   build multi-stage (cliente + servidor num único container)
 ```
 
-Acesse `http://localhost:3000` e entre com a conta de demonstração
+## Rodando o projeto localmente
+
+Requer Node.js 20+. O backend usa SQLite embutido — não é preciso instalar
+nenhum servidor de banco de dados.
+
+```bash
+# 1. Backend
+cd server
+npm install
+cp .env.example .env
+npm run db:migrate     # cria server/data/lumina.db a partir do schema.sql
+npm run db:seed        # popula uma empresa de demonstração
+npm run dev             # http://localhost:4000
+
+# 2. Frontend (noutro terminal)
+cd client
+npm install
+npm run dev              # http://localhost:5173 (proxy automático de /api para :4000)
+```
+
+Acesse `http://localhost:5173` e entre com a conta de demonstração
 pré-preenchida no login:
 
 - **E-mail:** `demo@lumina.com.br`
 - **Senha:** `lumina123`
 
 Ou crie uma conta nova em `/registro` — o cadastro gera automaticamente uma
-`Company` com plano Starter e período de teste de 14 dias.
+empresa com plano Starter e período de teste de 14 dias.
+
+### Build de produção
+
+```bash
+cd client && npm run build      # gera client/dist
+cd ../server && npm start        # serve a API e o build estático do client em :4000
+```
 
 ### Scripts disponíveis
 
-| Comando | Descrição |
-| --- | --- |
-| `npm run dev` | Ambiente de desenvolvimento (Turbopack) |
-| `npm run build` / `npm run start` | Build e execução em modo produção |
-| `npm run lint` | ESLint |
-| `npm run db:migrate` | Aplica migrações Prisma |
-| `npm run db:seed` | Repopula o banco com dados de demonstração |
-| `npm run db:studio` | Abre o Prisma Studio |
+| Local | Comando | Descrição |
+| --- | --- | --- |
+| `server/` | `npm run dev` | API com reload automático (`node --watch`) |
+| `server/` | `npm start` | API em modo produção (também serve `client/dist`) |
+| `server/` | `npm run db:migrate` | Aplica `schema.sql` ao SQLite |
+| `server/` | `npm run db:seed` | Repopula o banco com dados de demonstração |
+| `client/` | `npm run dev` | Vite em modo desenvolvimento |
+| `client/` | `npm run build` | Build de produção do React |
 
-## Estrutura do projeto
+## Implantação (Google Cloud)
 
+O `Dockerfile` na raiz gera uma única imagem (build do React + API Express)
+pronta para **Google Cloud Run**:
+
+```bash
+gcloud builds submit --tag gcr.io/SEU_PROJETO/lumina
+gcloud run deploy lumina \
+  --image gcr.io/SEU_PROJETO/lumina \
+  --set-env-vars JWT_SECRET=troque-este-segredo,DATABASE_PATH=/app/data/lumina.db \
+  --port 8080
 ```
-src/
-  app/
-    page.tsx                 # Landing page
-    login/, registro/        # Autenticação
-    dashboard/
-      layout.tsx              # Shell autenticado (Sidebar + Topbar)
-      page.tsx                 # Visão geral / radar de liquidez
-      contas/                  # Módulo 1 — Agregação Patrimonial
-      fluxo-caixa/              # Módulo 2 — Split Payment
-      credito/                  # Módulo 3 — Crédito Contextual
-      cobranca/                  # Módulo 4 — Pix Automático
-    api/auth/                # Rotas de login/registro/logout
-  components/
-    marketing/                # Seções da landing page
-    dashboard/                # Sidebar, Topbar, gráficos, badges
-    auth/                      # Formulários de login/registro
-  lib/
-    tax.ts                     # Simulação de Split Payment (IBS/CBS)
-    credit.ts                   # Motor de score explicável
-    analytics.ts                 # Agregações por mês/semana para os gráficos
-    auth.ts, session.ts           # JWT + leitura de sessão no servidor
-    queries.ts                     # Consultas Prisma reutilizadas nos módulos
-  proxy.ts                    # Proteção de rotas /dashboard (antigo middleware)
-prisma/
-  schema.prisma
-  seed.ts
-```
+
+> SQLite é um ficheiro local — num serviço serverless como o Cloud Run, cada
+> instância teria o seu próprio banco. Para produção real, o próximo passo
+> natural seria trocar `better-sqlite3` por **Cloud SQL (PostgreSQL/MySQL)**
+> via um driver como `pg` ou `mysql2`, mantendo as mesmas queries SQL.
 
 ## Limitações conhecidas (é uma demonstração)
 
-- As alíquotas de IBS/CBS em `lib/tax.ts` são **ilustrativas** — a
+- As alíquotas de IBS/CBS em `tax.service.js` são **ilustrativas** — a
   regulamentação complementar da Reforma Tributária ainda está em curso.
 - O motor de crédito é uma simulação de regras; não há ligação real a
   nenhuma Instituição Prestadora de BaaS, SCR do Banco Central ou parceiro
   de Open Finance.
+- SQLite é adequado para demonstração e desenvolvimento local; um ambiente
+  multi-instância em produção exigiria um banco gerido (Cloud SQL).
 - Autenticação usa JWT em cookie simples — adequado para demonstração, mas
   produção exigiria rotação de chaves, MFA e rate limiting.
-- Sem testes automatizados end-to-end no repositório (foi feito smoke test
-  manual com Playwright durante o desenvolvimento).
+- Sem testes automatizados no repositório (foi feito smoke test manual com
+  Playwright e testes de API via `curl` durante o desenvolvimento).
