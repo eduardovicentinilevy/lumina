@@ -23,13 +23,36 @@ conversam por API REST:
 
 | Camada | Tecnologias |
 | --- | --- |
-| **Backend** (`/server`) | Node.js, Express, SQLite (`better-sqlite3`, SQL puro — sem ORM), JWT (`jsonwebtoken`), `bcryptjs`, `cookie-parser` |
+| **Backend** (`/server`) | Node.js, Express, SQLite (`better-sqlite3`, SQL puro — sem ORM), JWT (`jsonwebtoken`), `bcryptjs`, `cookie-parser`, `helmet`, `express-rate-limit` |
 | **Frontend** (`/client`) | React (JavaScript, sem TypeScript), React Router, Vite, CSS puro (Flexbox — sem frameworks utilitários) |
+| **Testes** | `node:test` + `node:assert` (nativos do Node, sem dependências extra) |
 | **Infra** | Dockerfile multi-stage pronto para Google Cloud Run / App Engine flexible |
 
 Todo o SQL é escrito à mão (sem Prisma/Sequelize/TypeORM): consultas
 parametrizadas, `JOIN`s, agregações com `GROUP BY`, uma `VIEW` e transações
 explícitas — ver `server/src/db/schema.sql` e as rotas em `server/src/routes/`.
+
+## Qualidade e segurança
+
+- **Validação de dados**: e-mail por regex e **CNPJ pelo algoritmo oficial
+  dos dois dígitos verificadores** (módulo 11), não apenas checagem de
+  formato — ver `server/src/utils/validators.js`. Valores numéricos
+  (montantes, prazos) são validados contra `NaN`/negativos antes de chegar
+  ao banco.
+- **CRUD completo em todos os recursos**: contas e cobranças suportam
+  Create/Read/Update **e Delete** (`DELETE /api/accounts/:id`,
+  `DELETE /api/invoices/:id`), com regras de negócio (ex.: só é possível
+  excluir uma cobrança ainda pendente — registos liquidados são mantidos
+  para auditoria).
+- **Segurança da API**: `helmet` para cabeçalhos HTTP de segurança e
+  `express-rate-limit` em `/api/auth/login` e `/api/auth/register` para
+  mitigar força bruta. 404 em JSON para rotas inexistentes (em vez do HTML
+  padrão do Express).
+- **Testes automatizados** (`cd server && npm test`): testes unitários dos
+  serviços puros (`tax.service.js`, `credit.service.js`, `validators.js`) e
+  um teste de integração que sobe a API Express real numa porta aleatória,
+  com base de dados isolada, e exercita registo → login → validação →
+  CRUD → logout via `fetch`.
 
 ## Por que estes módulos
 
@@ -59,18 +82,23 @@ da Resolução Conjunta nº 16/2025.
 ```
 server/                      API REST (Node.js + Express)
   src/
-    index.js                  entrada do Express, monta as rotas
+    app.js                     monta middlewares, segurança e rotas (exporta o app)
+    index.js                    entrada fina: carrega .env e chama app.listen()
     db/
-      index.js                 conexão better-sqlite3
+      index.js                 conexão better-sqlite3 (cria a pasta data/ se faltar)
       schema.sql                 tabelas, índices e a VIEW v_company_invoice_metrics
       migrate.js                  aplica o schema.sql
     middleware/auth.js         JWT em cookie httpOnly + requireAuth
-    routes/                    auth, accounts, invoices, credit, tax, plans
+    routes/                    auth, accounts, invoices, credit, tax, plans (CRUD completo)
     services/
       tax.service.js            simulação de Split Payment (IBS/CBS)
       credit.service.js          motor de score explicável
       plans.js                    planos e preços
+    utils/
+      validators.js              e-mail (regex) e CNPJ (dígitos verificadores)
+      id.js                       geração de IDs
     seed.js                    popula uma empresa de demonstração
+  test/                       testes unitários + integração (node:test)
   data/lumina.db              base de dados SQLite (gerada localmente)
 
 client/                      SPA (React + Vite, JavaScript puro)
@@ -132,6 +160,7 @@ cd ../server && npm start        # serve a API e o build estático do client em 
 | `server/` | `npm start` | API em modo produção (também serve `client/dist`) |
 | `server/` | `npm run db:migrate` | Aplica `schema.sql` ao SQLite |
 | `server/` | `npm run db:seed` | Repopula o banco com dados de demonstração |
+| `server/` | `npm test` | Executa os testes unitários e de integração |
 | `client/` | `npm run dev` | Vite em modo desenvolvimento |
 | `client/` | `npm run build` | Build de produção do React |
 
@@ -162,7 +191,8 @@ gcloud run deploy lumina \
   de Open Finance.
 - SQLite é adequado para demonstração e desenvolvimento local; um ambiente
   multi-instância em produção exigiria um banco gerido (Cloud SQL).
-- Autenticação usa JWT em cookie simples — adequado para demonstração, mas
-  produção exigiria rotação de chaves, MFA e rate limiting.
-- Sem testes automatizados no repositório (foi feito smoke test manual com
-  Playwright e testes de API via `curl` durante o desenvolvimento).
+- Autenticação usa JWT em cookie simples com rate limiting básico — adequado
+  para demonstração, mas produção exigiria rotação de chaves e MFA.
+- A cobertura de testes automatizados é focada (serviços puros + um fluxo de
+  integração ponta a ponta), não exaustiva; foi complementada por smoke test
+  manual com Playwright durante o desenvolvimento.

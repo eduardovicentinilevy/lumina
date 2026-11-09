@@ -35,7 +35,7 @@ function seed() {
 
   db.prepare(
     `INSERT INTO companies (id, name, cnpj, tax_regime, sector, plan)
-     VALUES (?, 'Padaria Alvorada Ltda', '12.345.678/0001-90', 'SIMPLES_NACIONAL', 'Alimentação & Panificação', 'PRO')`
+     VALUES (?, 'Padaria Alvorada Ltda', '12.345.678/0001-95', 'SIMPLES_NACIONAL', 'Alimentação & Panificação', 'PRO')`
   ).run(companyId);
 
   const passwordHash = bcrypt.hashSync("lumina123", 10);
@@ -229,7 +229,7 @@ function seed() {
   }
 
   console.log("\nSeed concluído.");
-  console.log("Empresa: Padaria Alvorada Ltda (12.345.678/0001-90)");
+  console.log("Empresa: Padaria Alvorada Ltda (12.345.678/0001-95)");
   console.log("Login: demo@lumina.com.br / senha: lumina123");
   console.log(`Score de crédito calculado: ${scoreResult.score} (faixa ${scoreResult.tier})`);
 }

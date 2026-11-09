@@ -151,4 +151,17 @@ router.patch("/:id/renew", (req, res) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/accounts/:id — desconecta a conta (DELETE). A exclusão
+// é propagada às transações associadas via ON DELETE CASCADE no schema.
+router.delete("/:id", (req, res) => {
+  const result = db
+    .prepare("DELETE FROM bank_accounts WHERE id = ? AND company_id = ?")
+    .run(req.params.id, req.user.companyId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Conta não encontrada." });
+  }
+  res.json({ ok: true });
+});
+
 module.exports = router;

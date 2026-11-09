@@ -3,6 +3,7 @@ const db = require("../db");
 const { generateId } = require("../utils/id");
 const { requireAuth } = require("../middleware/auth");
 const { simulateSplitPayment } = require("../services/tax.service");
+const { isPositiveNumber } = require("../utils/validators");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -93,10 +94,21 @@ router.get("/monthly", (req, res) => {
 // POST /api/invoices — cria uma nova cobrança B2B (CREATE), calculando o
 // Split Payment (IBS/CBS) a partir do regime tributário da empresa.
 router.post("/", (req, res) => {
-  const { customerName, customerDocument, grossAmount, dueInDays, recurring } = req.body ?? {};
+  const body = req.body ?? {};
+  const customerName = String(body.customerName ?? "").trim();
+  const customerDocument = String(body.customerDocument ?? "").trim();
+  const grossAmount = body.grossAmount;
+  const dueInDays = body.dueInDays;
+  const recurring = body.recurring;
 
-  if (!customerName || !grossAmount || Number(grossAmount) <= 0) {
-    return res.status(400).json({ error: "Informe o cliente e um valor bruto válido." });
+  if (!customerName) {
+    return res.status(400).json({ error: "Informe o nome do cliente." });
+  }
+  if (!isPositiveNumber(grossAmount)) {
+    return res.status(400).json({ error: "Informe um valor bruto numérico maior que zero." });
+  }
+  if (dueInDays !== undefined && (!isPositiveNumber(dueInDays) || Number(dueInDays) > 365)) {
+    return res.status(400).json({ error: "O prazo de vencimento deve ser entre 1 e 365 dias." });
   }
 
   const company = db
@@ -153,6 +165,28 @@ router.patch("/:id", (req, res) => {
   }
 
   if (result.changes === 0) {
+    return res.status(404).json({ error: "Cobrança não encontrada." });
+  }
+  res.json({ ok: true });
+});
+
+// DELETE /api/invoices/:id — remove uma cobrança (DELETE). Só é permitido
+// excluir cobranças ainda PENDENTES; registos liquidados, atrasados ou
+// falhados são mantidos para preservar o histórico de auditoria.
+router.delete("/:id", (req, res) => {
+  const result = db
+    .prepare("DELETE FROM invoices WHERE id = ? AND company_id = ? AND status = 'PENDENTE'")
+    .run(req.params.id, req.user.companyId);
+
+  if (result.changes === 0) {
+    const exists = db
+      .prepare("SELECT status FROM invoices WHERE id = ? AND company_id = ?")
+      .get(req.params.id, req.user.companyId);
+    if (exists) {
+      return res.status(409).json({
+        error: "Só é possível excluir cobranças pendentes. Esta já foi liquidada ou processada.",
+      });
+    }
     return res.status(404).json({ error: "Cobrança não encontrada." });
   }
   res.json({ ok: true });

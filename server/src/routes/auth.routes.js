@@ -9,6 +9,7 @@ const {
   requireAuth,
 } = require("../middleware/auth");
 const { PLAN_DETAILS } = require("../services/plans");
+const { isValidEmail, isValidCNPJ } = require("../utils/validators");
 
 const router = express.Router();
 
@@ -16,10 +17,23 @@ const TAX_REGIMES = ["SIMPLES_NACIONAL", "LUCRO_PRESUMIDO", "LUCRO_REAL"];
 
 // POST /api/auth/register — cria empresa + primeiro utilizador (CREATE)
 router.post("/register", (req, res) => {
-  const { companyName, cnpj, taxRegime, sector, name, email, password } = req.body ?? {};
+  const body = req.body ?? {};
+  const companyName = String(body.companyName ?? "").trim();
+  const cnpj = String(body.cnpj ?? "").trim();
+  const taxRegime = body.taxRegime;
+  const sector = String(body.sector ?? "").trim();
+  const name = String(body.name ?? "").trim();
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
 
   if (!companyName || !cnpj || !name || !email || !password) {
     return res.status(400).json({ error: "Preencha todos os campos obrigatórios." });
+  }
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: "E-mail inválido." });
+  }
+  if (!isValidCNPJ(cnpj)) {
+    return res.status(400).json({ error: "CNPJ inválido — confira os dígitos verificadores." });
   }
   if (password.length < 8) {
     return res.status(400).json({ error: "A senha deve ter ao menos 8 caracteres." });
@@ -70,7 +84,8 @@ router.post("/register", (req, res) => {
 
 // POST /api/auth/login — autentica e devolve cookie de sessão
 router.post("/login", (req, res) => {
-  const { email, password } = req.body ?? {};
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const password = String(req.body?.password ?? "");
   if (!email || !password) {
     return res.status(400).json({ error: "Informe e-mail e senha." });
   }

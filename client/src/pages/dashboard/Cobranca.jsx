@@ -70,6 +70,17 @@ export default function Cobranca() {
     }
   }
 
+  async function handleDelete(id) {
+    if (!window.confirm("Excluir esta cobrança pendente? Esta ação não pode ser desfeita.")) return;
+    setBusy(true);
+    try {
+      await api.delete(`/invoices/${id}`);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <p>A carregar…</p>;
 
   const settled = invoices.filter((i) => ["PAGA", "ATRASADA", "FALHOU"].includes(i.status));
@@ -188,6 +199,16 @@ export default function Cobranca() {
                     {(inv.status === "PENDENTE" || inv.status === "ATRASADA") && (
                       <button onClick={() => handleMarkPaid(inv.id)} disabled={busy} className="btn btn-outline btn-sm">
                         Marcar paga
+                      </button>
+                    )}
+                    {inv.status === "PENDENTE" && (
+                      <button
+                        onClick={() => handleDelete(inv.id)}
+                        disabled={busy}
+                        className="btn btn-ghost btn-sm"
+                        style={{ marginLeft: 6 }}
+                      >
+                        Excluir
                       </button>
                     )}
                   </td>

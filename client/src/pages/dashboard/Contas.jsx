@@ -46,6 +46,17 @@ export default function Contas() {
     }
   }
 
+  async function handleDisconnect(id, institution) {
+    if (!window.confirm(`Desconectar "${institution}"? O histórico de movimentações desta conta será removido.`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/accounts/${id}`);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <p>A carregar…</p>;
 
   const totalBalance = accounts.reduce((acc, a) => acc + a.balanceCents, 0);
@@ -96,11 +107,16 @@ export default function Contas() {
                   : "Requer renovação de consentimento para continuar sincronizando"}
               </p>
 
-              {(account.consentStatus !== "ATIVO" || daysLeft <= 15) && (
-                <button onClick={() => handleRenew(account.id)} disabled={busy} className="btn btn-outline btn-sm" style={{ marginTop: 12 }}>
-                  Renovar consentimento
+              <div className="flex gap-2" style={{ marginTop: 12 }}>
+                {(account.consentStatus !== "ATIVO" || daysLeft <= 15) && (
+                  <button onClick={() => handleRenew(account.id)} disabled={busy} className="btn btn-outline btn-sm">
+                    Renovar consentimento
+                  </button>
+                )}
+                <button onClick={() => handleDisconnect(account.id, account.institution)} disabled={busy} className="btn btn-ghost btn-sm">
+                  Desconectar
                 </button>
-              )}
+              </div>
 
               <div className="tx-list">
                 <p className="tx-title">Movimentações recentes</p>
