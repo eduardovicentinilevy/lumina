@@ -64,8 +64,8 @@ export default function Credito() {
             Score atual
           </p>
           <div className="flex items-center gap-1" style={{ marginTop: 8, alignItems: "baseline" }}>
-            <span style={{ fontSize: "2.2rem", fontWeight: 700 }}>{score.score}</span>
-            <span style={{ fontSize: "0.85rem", color: "var(--muted-light)" }}>/ 1000</span>
+            <span className="mono" style={{ fontSize: "2.2rem", fontWeight: 700 }}>{score.score}</span>
+            <span className="mono" style={{ fontSize: "0.85rem", color: "var(--muted-light)" }}>/ 1000</span>
           </div>
           <div style={{ marginTop: 10 }}>
             <Badge tone={TIER_TONE[score.tier]}>Faixa {score.tier}</Badge>
@@ -87,7 +87,7 @@ export default function Credito() {
               <div key={factor.label} className="factor-row">
                 <div className="flex items-center justify-between" style={{ fontSize: "0.85rem" }}>
                   <span style={{ fontWeight: 500 }}>{factor.label}</span>
-                  <span style={{ color: factor.positive ? "var(--emerald)" : "var(--amber)" }}>
+                  <span className="mono" style={{ color: factor.positive ? "var(--emerald)" : "var(--amber)" }}>
                     {factor.points} / {factor.maxPoints} pts
                   </span>
                 </div>

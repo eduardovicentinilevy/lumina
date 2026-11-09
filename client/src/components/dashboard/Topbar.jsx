@@ -27,9 +27,7 @@ export function Topbar() {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <span className="badge badge-brand" style={{ background: "rgba(20,184,166,0.1)", color: "#0f766e", borderColor: "rgba(20,184,166,0.2)" }}>
-          Parceiro BaaS: Celcoin
-        </span>
+        <span className="badge badge-accent">Parceiro BaaS: Celcoin</span>
         <button onClick={handleLogout} disabled={loading} className="btn btn-ghost btn-sm">
           {loading ? "Saindo..." : "Sair"}
         </button>
