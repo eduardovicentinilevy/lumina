@@ -53,7 +53,7 @@
   color: var(--foreground);
 }
 .sidebar-link.active {
-  background: rgba(38, 40, 46, 0.05);
+  background: rgba(27, 43, 77, 0.06);
   border-left-color: var(--accent);
   color: var(--brand-dark);
   font-weight: 700;
@@ -250,7 +250,7 @@
   max-width: 20px;
   border-radius: 3px 3px 0 0;
 }
-.bar-chart .bar.gross { background: rgba(38, 40, 46, 0.14); }
+.bar-chart .bar.gross { background: rgba(27, 43, 77, 0.16); }
 .bar-chart .bar.net { background: var(--accent); }
 .bar-chart .bar-label {
   font-size: 0.68rem;
@@ -273,7 +273,7 @@
   margin-right: 6px;
   vertical-align: -1px;
 }
-.swatch.gross { background: rgba(38, 40, 46, 0.14); }
+.swatch.gross { background: rgba(27, 43, 77, 0.16); }
 .swatch.net { background: var(--accent); }
 
 /* tables */
@@ -307,7 +307,7 @@ table.data-table tr:last-child td {
   border-bottom: none;
 }
 table.data-table tr:hover td {
-  background: rgba(38, 40, 46, 0.02);
+  background: rgba(27, 43, 77, 0.03);
 }
 
 /* credit module */
